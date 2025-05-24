@@ -13,13 +13,18 @@ file(GLOB_RECURSE test_sources
     "test/advent_of_code/*/*.cpp"
 )
 
+# Filter out main.cpp files from advent_sources
+file(GLOB_RECURSE main_sources
+    "src/advent_of_code/*/main.cpp"
+)
+list(REMOVE_ITEM advent_sources ${main_sources})
+
 set(sources
     ${advent_sources}
 )
 
-set(exe_sources
-    ${advent_sources}
-)
+# We don't need exe_sources anymore since each day is its own executable
+set(exe_sources "")
 
 set(headers
     ${advent_headers}

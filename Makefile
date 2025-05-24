@@ -103,9 +103,9 @@ test: build
 	fi
 
 # Run a specific day's solution
-run: build
+run-day: build
 	@if [ -z "$(day)" ]; then \
-		echo "Usage: make run day=2015_day01"; \
+		echo "Usage: make run-day day=2015_day01"; \
 		exit 1; \
 	fi
 	@echo "Running $(day)..."
@@ -135,7 +135,7 @@ help:
 	@echo "  deps         - Install/update dependencies (only if build directory doesn't exist)"
 	@echo "  build        - Build the project"
 	@echo "  test         - Run all tests"
-	@echo "  run          - Run a specific day's solution (e.g., make run day=2015_day01)"
+	@echo "  run-day      - Run a specific day's solution (e.g., make run-day day=2015_day01)"
 	@echo "  clean        - Clean build directory"
 	@echo ""
 	@echo "Build options:"
@@ -147,6 +147,6 @@ help:
 	@echo "  make build              # Build with warnings disabled (default)"
 	@echo "  make build WARNINGS=on  # Build with warnings enabled"
 	@echo "  make test WARNINGS=on   # Run tests with warnings enabled"
-	@echo "  make run day=2015_day01 # Run day 1 of 2015"
+	@echo "  make run-day day=2015_day01 # Run day 1 of 2015"
 	@echo ""
 	@echo "Note: Input files must be placed at src/advent_of_code/YYYY/dayXX/input.txt"

@@ -77,6 +77,10 @@ function(set_project_warnings project_name)
       -Wuseless-cast # warn if you perform a cast to the same type
   )
 
+  if(NOT ${PROJECT_NAME}_WARNINGS_AS_ERRORS)
+    message(STATUS "Warnings are not treated as errors.")
+  endif()
+
   if(MSVC)
     set(PROJECT_WARNINGS ${MSVC_WARNINGS})
   elseif(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
@@ -87,13 +91,21 @@ function(set_project_warnings project_name)
     message(AUTHOR_WARNING "No compiler warnings set for '${CMAKE_CXX_COMPILER_ID}' compiler.")
   endif()
 
-  if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
-        target_compile_options(${project_name} INTERFACE ${PROJECT_WARNINGS})
-  else()
-        target_compile_options(${project_name} PUBLIC ${PROJECT_WARNINGS})
+  # Skip setting warnings for the main project when building executables for each day
+  if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
+    if(TARGET ${project_name}_LIB)
+      target_compile_options(${project_name}_LIB PUBLIC ${PROJECT_WARNINGS})
+    endif()
+    return()
   endif()
 
-  if(NOT TARGET ${project_name})
-    message(AUTHOR_WARNING "${project_name} is not a target, thus no compiler warning were added.")
+  if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
+    target_compile_options(${project_name} INTERFACE ${PROJECT_WARNINGS})
+  else()
+    target_compile_options(${project_name} PUBLIC ${PROJECT_WARNINGS})
+  endif()
+
+  if(NOT TARGET ${project_name} AND NOT TARGET ${project_name}_LIB)
+    message(AUTHOR_WARNING "${project_name} is not a target, thus no compiler warnings were added.")
   endif()
 endfunction()

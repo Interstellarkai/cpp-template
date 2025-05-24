@@ -103,24 +103,7 @@ include(cmake/Vcpkg.cmake)
 include(cmake/SourcesAndHeaders.cmake)
 
 if(${PROJECT_NAME}_BUILD_EXECUTABLE)
-  add_executable(${PROJECT_NAME} ${exe_sources})
-
-  # Disable altera-related warnings for the main executable
-  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(${PROJECT_NAME} PRIVATE
-      -Wno-error=altera-unroll-loops
-      -Wno-error=altera-id-dependent-backward-branch
-      -Wno-error=misc-include-cleaner
-    )
-  endif()
-
-  if(${PROJECT_NAME}_VERBOSE_OUTPUT)
-    verbose_message("Found the following sources:")
-    foreach(source IN LISTS exe_sources)
-      verbose_message("* ${source}")
-    endforeach()
-  endif()
-
+  # We don't need a main executable anymore since each day is its own executable
   if(${PROJECT_NAME}_ENABLE_UNIT_TESTING)
     add_library(${PROJECT_NAME}_LIB ${headers} ${sources})
 
@@ -159,13 +142,7 @@ else()
   endif()
 endif()
 
-set_target_properties(
-  ${PROJECT_NAME}
-  PROPERTIES
-  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}"
-)
+# Remove the main executable target properties since we don't need it
 if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
   set_target_properties(
     ${PROJECT_NAME}_LIB
@@ -185,10 +162,10 @@ message(STATUS "Added all header and implementation files.\n")
 if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
   target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_20)
 else()
-  target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
-
   if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
     target_compile_features(${PROJECT_NAME}_LIB PUBLIC cxx_std_20)
+  else()
+    target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
   endif()
 endif()
 include(cmake/CompilerWarnings.cmake)
@@ -252,17 +229,18 @@ if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   )
 else()
-  target_include_directories(
-    ${PROJECT_NAME}
-    PUBLIC
-    $<INSTALL_INTERFACE:include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-  )
   if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
     target_include_directories(
       ${PROJECT_NAME}_LIB
+      PUBLIC
+      $<INSTALL_INTERFACE:include>
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+  else()
+    target_include_directories(
+      ${PROJECT_NAME}
       PUBLIC
       $<INSTALL_INTERFACE:include>
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -278,8 +256,9 @@ message(STATUS "Finished setting up include directories.")
 # Provide alias to library for
 #
 
+# Remove the main executable alias since we don't need it
 if(${PROJECT_NAME}_BUILD_EXECUTABLE)
-  add_executable(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+  add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME}_LIB)
 else()
   add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 endif()
@@ -299,13 +278,11 @@ add_clang_format_target()
 include(GNUInstallDirs)
 install(
   TARGETS
-  ${PROJECT_NAME}
+  ${PROJECT_NAME}_LIB
   EXPORT
   ${PROJECT_NAME}Targets
   LIBRARY DESTINATION
   ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION
-  ${CMAKE_INSTALL_BINDIR}
   ARCHIVE DESTINATION
   ${CMAKE_INSTALL_LIBDIR}
   INCLUDES DESTINATION
