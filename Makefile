@@ -1,4 +1,4 @@
-.PHONY: install coverage test docs help
+.PHONY: all deps build test run clean help
 .DEFAULT_GOAL := help
 
 define BROWSER_PYSCRIPT
@@ -61,3 +61,92 @@ format: ## format the project sources
 	rm -rf build/
 	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION)
 	cmake --build build --target clang-format
+
+# Advent of Code specific targets
+.PHONY: build-advent test-advent run-day clean-advent deps
+
+# Build configuration
+WARNINGS ?= off
+
+# Convert warnings option to CMake flag
+ifeq ($(WARNINGS),on)
+    WARNINGS_FLAG := -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic"
+else
+    WARNINGS_FLAG := -DCMAKE_CXX_FLAGS="-w"
+endif
+
+# Default target that builds everything
+all: build
+
+# Install dependencies only if build directory doesn't exist
+deps:
+	@if [ ! -d "build" ]; then \
+		echo "First time setup: Creating build directory and configuring CMake..."; \
+		mkdir -p build; \
+		cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug $(WARNINGS_FLAG); \
+	else \
+		echo "Build directory exists, skipping CMake configuration..."; \
+	fi
+
+# Build the project
+build: deps
+	@echo "Building project..."
+	@cmake --build build -- -j$(shell sysctl -n hw.ncpu)
+
+# Run all tests
+test: build
+	@echo "Running tests..."
+	@if [ -d build ]; then \
+		cd build && ctest -C Debug -V || echo "No tests found or tests failed."; \
+	else \
+		echo "Build directory not found. Please run make build first."; \
+	fi
+
+# Run a specific day's solution
+run: build
+	@if [ -z "$(day)" ]; then \
+		echo "Usage: make run day=2015_day01"; \
+		exit 1; \
+	fi
+	@echo "Running $(day)..."
+	@if [ ! -f "./build/bin/Debug/$(day)" ]; then \
+		echo "Error: Executable ./build/bin/Debug/$(day) not found"; \
+		echo "Available executables:"; \
+		ls -1 ./build/bin/Debug/ | grep -E '^[0-9]{4}_day[0-9]{2}$$'; \
+		exit 1; \
+	fi
+	@if [ ! -f "./src/advent_of_code/$(word 1,$(subst _, ,$(day)))/$(word 2,$(subst _, ,$(day)))/input.txt" ]; then \
+		echo "Warning: Input file not found at ./src/advent_of_code/$(word 1,$(subst _, ,$(day)))/$(word 2,$(subst _, ,$(day)))/input.txt"; \
+		echo "Please create the input file before running the solution."; \
+		exit 1; \
+	fi
+	@cd ./src/advent_of_code/$(word 1,$(subst _, ,$(day)))/$(word 2,$(subst _, ,$(day))) && \
+	../../../../build/bin/Debug/$(day)
+
+# Clean everything
+clean:
+	@echo "Cleaning build..."
+	@rm -rf build
+
+# Help target
+help:
+	@echo "Available targets:"
+	@echo "  all          - Build everything (dependencies + project)"
+	@echo "  deps         - Install/update dependencies (only if build directory doesn't exist)"
+	@echo "  build        - Build the project"
+	@echo "  test         - Run all tests"
+	@echo "  run          - Run a specific day's solution (e.g., make run day=2015_day01)"
+	@echo "  clean        - Clean build directory"
+	@echo ""
+	@echo "Build options:"
+	@echo "  WARNINGS     - Enable/disable compiler warnings (default: off)"
+	@echo "                 Usage: make build WARNINGS=on"
+	@echo "                 or:    make test WARNINGS=on"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make build              # Build with warnings disabled (default)"
+	@echo "  make build WARNINGS=on  # Build with warnings enabled"
+	@echo "  make test WARNINGS=on   # Run tests with warnings enabled"
+	@echo "  make run day=2015_day01 # Run day 1 of 2015"
+	@echo ""
+	@echo "Note: Input files must be placed at src/advent_of_code/YYYY/dayXX/input.txt"

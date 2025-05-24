@@ -5,10 +5,51 @@ cmake_minimum_required(VERSION 3.31)
 #
 
 project(
-  "Project"
+  "AdventOfCode"
   VERSION 0.1.0
   LANGUAGES CXX
 )
+
+# Set C++17 as the standard (needed for std::filesystem)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Set required options for Advent of Code project
+set(${PROJECT_NAME}_BUILD_EXECUTABLE ON CACHE BOOL "Build as executable" FORCE)
+set(${PROJECT_NAME}_ENABLE_UNIT_TESTING ON CACHE BOOL "Enable unit testing" FORCE)
+set(${PROJECT_NAME}_USE_GTEST ON CACHE BOOL "Use GoogleTest" FORCE)
+set(${PROJECT_NAME}_ENABLE_CLANG_TIDY ON CACHE BOOL "Enable Clang-Tidy" FORCE)
+
+# Fetch and configure GoogleTest
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG main
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+
+# Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
+# Set GoogleTest to build with fewer warnings and C++20 compatibility
+set(gtest_disable_pthreads ON CACHE BOOL "" FORCE)
+set(gtest_hide_internal_symbols ON CACHE BOOL "" FORCE)
+set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ standard to use" FORCE)
+set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "Require C++ standard" FORCE)
+set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Disable compiler extensions" FORCE)
+
+# Disable warnings for GoogleTest
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=altera-unroll-loops -Wno-error=altera-id-dependent-backward-branch -Wno-error=misc-include-cleaner")
+
+FetchContent_MakeAvailable(googletest)
+
+# Disable warnings for GoogleTest targets
+target_compile_options(gtest PRIVATE -w)
+target_compile_options(gtest_main PRIVATE -w)
+target_compile_options(gmock PRIVATE -w)
+target_compile_options(gmock_main PRIVATE -w)
 
 #
 # Set project options
@@ -63,6 +104,15 @@ include(cmake/SourcesAndHeaders.cmake)
 
 if(${PROJECT_NAME}_BUILD_EXECUTABLE)
   add_executable(${PROJECT_NAME} ${exe_sources})
+
+  # Disable altera-related warnings for the main executable
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(${PROJECT_NAME} PRIVATE
+      -Wno-error=altera-unroll-loops
+      -Wno-error=altera-id-dependent-backward-branch
+      -Wno-error=misc-include-cleaner
+    )
+  endif()
 
   if(${PROJECT_NAME}_VERBOSE_OUTPUT)
     verbose_message("Found the following sources:")
@@ -133,12 +183,12 @@ message(STATUS "Added all header and implementation files.\n")
 #
 
 if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
-  target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_17)
+  target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_20)
 else()
-  target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+  target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 
   if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-    target_compile_features(${PROJECT_NAME}_LIB PUBLIC cxx_std_17)
+    target_compile_features(${PROJECT_NAME}_LIB PUBLIC cxx_std_20)
   endif()
 endif()
 include(cmake/CompilerWarnings.cmake)
@@ -361,3 +411,73 @@ if(${PROJECT_NAME}_ENABLE_UNIT_TESTING)
   message(STATUS "Build unit tests for the project. Tests should always be found in the test folder\n")
   add_subdirectory(test)
 endif()
+
+# Advent of Code specific settings
+set(ADVENT_YEARS "2015;2016;2017;2018;2019;2020;2021;2022;2023;2024;2025")
+set(ADVENT_DAYS "01;02;03;04;05;06;07;08;09;10;11;12;13;14;15;16;17;18;19;20;21;22;23;24;25")
+
+# Function to add a day's solution
+function(add_advent_day YEAR DAY)
+    set(DAY_NAME "day${DAY}")
+    set(DAY_DIR "src/advent_of_code/${YEAR}/${DAY_NAME}")
+    set(DAY_SOURCE "${DAY_DIR}/${DAY_NAME}.cpp")
+    set(DAY_HEADER "${DAY_DIR}/${DAY_NAME}.hpp")
+    set(DAY_MAIN "${DAY_DIR}/main.cpp")
+    set(DAY_TEST "test/advent_of_code/${YEAR}/${DAY_NAME}_test.cpp")
+
+    # Create a library for the day's solution
+    add_library(${YEAR}_${DAY_NAME}_lib STATIC ${DAY_SOURCE})
+    target_include_directories(${YEAR}_${DAY_NAME}_lib 
+        PUBLIC 
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+
+    # Add executable for the day
+    add_executable(${YEAR}_${DAY_NAME} ${DAY_MAIN})
+    target_link_libraries(${YEAR}_${DAY_NAME} PRIVATE ${YEAR}_${DAY_NAME}_lib)
+    target_include_directories(${YEAR}_${DAY_NAME} 
+        PRIVATE 
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    # Set output directory for the day executable
+    set_target_properties(${YEAR}_${DAY_NAME} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}"
+    )
+    
+    # Add test executable if test file exists
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${DAY_TEST}")
+        add_executable(${YEAR}_${DAY_NAME}_test ${DAY_TEST})
+        target_link_libraries(${YEAR}_${DAY_NAME}_test 
+            PRIVATE 
+            ${YEAR}_${DAY_NAME}_lib
+            GTest::gtest_main
+            GTest::gmock_main
+        )
+        target_include_directories(${YEAR}_${DAY_NAME}_test
+            PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+        )
+        add_test(NAME ${YEAR}_${DAY_NAME}_test COMMAND ${YEAR}_${DAY_NAME}_test)
+    endif()
+endfunction()
+
+# Disable some overly strict warnings globally
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(
+        -Wno-error=altera-unroll-loops
+        -Wno-error=altera-id-dependent-backward-branch
+        -Wno-error=misc-include-cleaner
+    )
+endif()
+
+# Add all days for all years
+foreach(YEAR ${ADVENT_YEARS})
+    foreach(DAY ${ADVENT_DAYS})
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/advent_of_code/${YEAR}/day${DAY}")
+            add_advent_day(${YEAR} ${DAY})
+        endif()
+    endforeach()
+endforeach()
